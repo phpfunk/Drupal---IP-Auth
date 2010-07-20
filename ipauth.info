@@ -1,0 +1,5 @@
+; $Id$
+name = IPAuth
+description = Redirect users based on IP addresses and authentication
+package = Administration
+core = 6.x

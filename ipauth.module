@@ -1,0 +1,129 @@
+<?php
+/**
+* @file
+* Restricts access by IP address
+*
+* Restricts site access by IP or range of IP addresses. If user is
+* not within range of IP addresses, they will be redirected to the
+* assigned redirect page. They can override IP verification by authenticating
+* This is to simulate an intranet using external servers.
+*/
+
+function ipauth_menu()
+{
+  $items = array();
+  $items['admin/settings/ipauth'] = array(
+    'title' => t('IPAuth Settings'),
+    'description' => t('Limit the IP address(es) a user is allowed to login from.'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ipauth_admin'),
+    'access arguments' => array('access administration pages'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+		
+  return $items;
+}
+
+function ipauth_init()
+{
+  global $user;
+  if (!ipauth_check_ips() && !$user->uid) {
+    $redirect = variable_get('ipauth_redirect_page', '/');
+    if (ipauth_redirect($redirect)) {
+      header("Location: " . $redirect);
+      exit;
+    }
+  }
+}
+
+/**
+* Non-hooks
+*/
+function ipauth_check_ips()
+{
+  //Strip out all periods
+  $user_ip = str_replace('.', '', $_SERVER['REMOTE_ADDR']);
+  $ips = str_replace('.', '', variable_get('ipauth_ips', '*'));
+  
+  //If * (anything) return true
+  if ($ips == '*') { return true; }
+  
+  //Create an IP'riffic array
+  $ips = explode("\n", $ips);
+  
+  //Loop thru the IPs
+  foreach ($ips as $ip) {
+    $ip = trim($ip);
+    
+    //Normal IP Check
+    if (! strstr($ip, '*') && ! strstr($ip, '-')) {
+      if ($user_ip == $ip) { 
+        return true;
+      }
+    }
+    //Range check with possible wild cards
+    elseif (strstr($ip, '-')) {
+      $tmp = explode('-', $ip);
+      $start = $tmp[0];
+      $start = explode('*', $start);
+      $start = $start[0];
+      $end = $tmp[1];
+      $end = explode('*', $end);
+      $end = $end[0];
+      $user_ip = substr($user_ip, 0, strlen($start));
+      if ($user_ip >= $start && $user_ip <= $end) { 
+        return true;
+      }
+    }
+    //Some straight up wildcard ish
+    else {
+      $ip = explode('*', $ip);
+      $ip = $ip[0];
+      $user_ip = substr($user_ip, 0, strlen($ip));
+      if ($ip == $user_ip) {
+        return true;
+      }
+    }
+  }
+  return false;
+  
+}
+
+function ipauth_redirect($redirect)
+{
+  //Get the current
+  $current_uri = $_SERVER['REQUEST_URI'];
+  $last_char = (substr($current_uri, strlen($current_uri) -1, 1) == '/') ? '' : '/';
+  $current_uri = $current_uri . $last_char;
+  $first_char = (substr($redirect, 0, 1) == '/') ? '' : '/';
+  $last_char = (substr($redirect, strlen($redirect_page) -1, 1) == '/') ? '' : '/';
+  $redirect = $first_char . $redirect . $last_char;
+  return ($redirect != $current_uri) ? TRUE : FALSE;
+}
+
+/**
+* Admin Settings
+*/
+function ipauth_admin()
+{
+
+  $form['ipauth_ips'] = array(
+    '#type' => 'textarea',
+    '#title' => t('IP Addresses'),
+    '#description' => t("The IP addresses that are okay to access the site. IP addresses should be listed on new lines (IE: hit return after each one). You can add single IP addresses (192.168.1.1), ranges (192.168.1.1 - 192.168.1.100) or wildcards (192.186.* or 192.168.1.*). You can also use wildcards within ranges. Yeah, you really can."),
+    '#default_value' => variable_get('ipauth_ips', '*'),
+    '#required' => TRUE
+  );
+
+ $form['ipauth_redirect_page'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Redirect Page'),
+    '#description' => t("The URL where a user will be redirected if their IP address is out of range and not authenticated. The URL must start with a slash '/'."),
+    '#default_value' => variable_get('ipauth_redirect_page', '/'),
+    '#required' => TRUE
+  );
+		
+  return system_settings_form($form);
+		
+}
+?>
