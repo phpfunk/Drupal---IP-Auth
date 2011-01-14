@@ -27,7 +27,7 @@ function ipauth_menu()
 function ipauth_init()
 {
   global $user;
-  if (!ipauth_check_ips() && !$user->uid) {
+  if (! ipauth_check_ips() && ! $user->uid && ! ipauth_exceptions()) {
     $redirect = variable_get('ipauth_redirect_page', '/');
     if (ipauth_redirect($redirect)) {
       header("Location: " . $redirect);
@@ -89,6 +89,19 @@ function ipauth_check_ips()
   
 }
 
+function ipauth_exceptions()
+{
+  $request = $_SERVER['SCRIPT_URL'];
+  $exceptions = variable_get('ipauth_exceptions', '');
+  $exceptions = explode("\n", $exceptions);
+  array_push($exceptions, variable_get('ipauth_redirect_page', '/'));
+  $good = FALSE;
+  foreach ($exceptions as $exception) {
+    $good = (trim($exception) == $request) ? TRUE : $good;
+  }
+  return $good;
+}
+
 function ipauth_redirect($redirect)
 {
   //Get the current
@@ -113,6 +126,14 @@ function ipauth_admin()
     '#description' => t("The IP addresses that are okay to access the site. IP addresses should be listed on new lines (IE: hit return after each one). You can add single IP addresses (192.168.1.1), ranges (192.168.1.1 - 192.168.1.100) or wildcards (192.186.* or 192.168.1.*). You can also use wildcards within ranges. Yeah, you really can."),
     '#default_value' => variable_get('ipauth_ips', '*'),
     '#required' => TRUE
+  );
+  
+  $form['ipauth_exceptions'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Exceptions'),
+    '#description' => t("List any nodes that you want to be excluded from this tool (IE: /user, /user/password). Each exception should be on a new line. No need to place the redirect page here, it will be automatically added to the exception list."),
+    '#default_value' => variable_get('ipauth_exceptions', ''),
+    '#required' => FALSE
   );
 
  $form['ipauth_redirect_page'] = array(
